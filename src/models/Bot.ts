@@ -1,7 +1,6 @@
 import { Guild, Message, TextBasedChannel } from 'discord.js';
 import { Server } from './Server';
 import { help, guide } from '../info';
-import { VoiceState } from 'discord.js';
 
 export class Bot {
     private id: string;
