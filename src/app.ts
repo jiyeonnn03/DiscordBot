@@ -1,9 +1,16 @@
-import { config } from './config';
+// import { config } from './config';
 import { Client, Intents, Message, TextChannel } from 'discord.js';
 import { Bot } from './models/Bot';
 
+import dotenv from "dotenv";
+dotenv.config(); // .env 파일을 불러옴
+
+export const BOT_TOKEN = process.env.BOT_TOKEN!;
+export const BOT_ID = process.env.BOT_ID!;
+
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_VOICE_STATES] });
-const bot = new Bot(config.id);
+// const bot = new Bot(config.id);
+const bot = new Bot(BOT_ID);
 
 client.on('ready', () => console.log(`${client.user.tag} is Ready !`));
 
@@ -26,7 +33,8 @@ client.on('channelDelete', channel => {
 
 client.on('messageCreate', message => bot.processCommand(message));
 
-client.login(config.token).then(() => bot.initServerList(client.guilds.cache));
+// client.login(config.token).then(() => bot.initServerList(client.guilds.cache));
+client.login(BOT_TOKEN).then(() => bot.initServerList(client.guilds.cache));
 
 
 
