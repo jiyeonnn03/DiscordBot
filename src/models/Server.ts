@@ -59,3 +59,4 @@ export class Server {
         this.summary.job = null;
     }
 }
+
