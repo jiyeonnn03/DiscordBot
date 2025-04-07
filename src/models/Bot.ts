@@ -1,6 +1,7 @@
-import { Guild, Message, TextBasedChannels } from 'discord.js';
+import { Guild, Message, TextBasedChannel } from 'discord.js';
 import { Server } from './Server';
 import { help, guide } from '../info';
+import { VoiceState } from 'discord.js';
 
 export class Bot {
     private id: string;
@@ -18,7 +19,13 @@ export class Bot {
         });
         console.log('Building Server List ...');
     }
-
+    public getServer(guildId: string): Server {
+        if (!this.serverList.has(guildId)) {
+            this.serverList.set(guildId, new Server());
+        }
+        return this.serverList.get(guildId)!;
+    }
+    
     public addServer(guildId: string) {
         const server = new Server();
         this.serverList.set(guildId, server);
@@ -73,13 +80,15 @@ export class Bot {
         attendChannel.permissionOverwrites.create(this.id, {'VIEW_CHANNEL': false});
 
         const watchChannel = await channelManager.create('시간-체크', { type: 'GUILD_TEXT', parent: studyCategory.id, topic: 'SBOT으로 공부시간 체크하자! :alarm_clock:'});
-        watchChannel.send('`start` 로 스톱워치를 시작하세요! `help` 를 통해 사용가능한 명령어를 확인할 수 있습니다.\n채널 알림을 꺼두는 것을 추천합니다. :no_bell:');
-        watchChannel.send(help);
+        await watchChannel.send('`start` 로 스톱워치를 시작하세요! `help` 를 통해 사용가능한 명령어를 확인할 수 있습니다.\n채널 알림을 꺼두는 것을 추천합니다. :no_bell:');
+        await watchChannel.send(help);
 
         const summaryChannel = await channelManager.create('하루-정리', { 
             type: 'GUILD_TEXT', 
             parent: studyCategory.id, 
-            topic: '오늘 따봉:thumbsup:을 받을까, 벽돌:bricks:을 받을까?', 
+            // topic: '오늘 따봉:thumbsup:을 받을까, 벽돌:bricks:을 받을까?', 
+            topic: '오늘 😃을 받을까, 😢을 받을까?', 
+            
             permissionOverwrites: [
                 {
                     id: guild.roles.everyone,
@@ -94,23 +103,24 @@ export class Bot {
         if (server.summary.job || server.summary.channelId) server.clearSummary();
         server.setSummary(summaryChannel.id, () => {this.summary(server, summaryChannel)});
         let comment = `해당 채널에 **하루 정리**가 설정되었습니다.
-        목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`;
+        목표 시간을 달성하면 😃을 , 달성하지 못한다면 😢을 받습니다.`;
+        // 목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`;
         summaryChannel.send(comment);
         
-        channelManager.create('캠-스터디', { type: 'GUILD_VOICE', parent: studyCategory.id});
+        await channelManager.create('캠-스터디', { type: 'GUILD_VOICE', parent: studyCategory.id });
+        
+        // const etcCategory = await channelManager.create('사담-채널', { type: 'GUILD_CATEGORY'});
 
-        const etcCategory = await channelManager.create('사담-채널', { type: 'GUILD_CATEGORY'});
+        // const talkChannel = await channelManager.create('수다는-적당히', { type: 'GUILD_TEXT', parent: etcCategory.id, topic: ':speaking_head:'});
+        // await talkChannel.send('자유롭게 이야기할 수 있는 공간입니다.');
 
-        const talkChannel = await channelManager.create('수다는-적당히', { type: 'GUILD_TEXT', parent: etcCategory.id, topic: ':speaking_head:'});
-        await talkChannel.send('자유롭게 이야기할 수 있는 공간입니다.');
+        // const trashChannel = await channelManager.create('감정-쓰레기통', { type: 'GUILD_TEXT', parent: etcCategory.id, topic: ':wastebasket:'});
+        // await trashChannel.send('스트레스를 쏟아붓는 곳입니다. 자유롭게 사용하기 위해 채널 알림을 꺼주세요! :no_bell:');
 
-        const trashChannel = await channelManager.create('감정-쓰레기통', { type: 'GUILD_TEXT', parent: etcCategory.id, topic: ':wastebasket:'});
-        await trashChannel.send('스트레스를 쏟아붓는 곳입니다. 자유롭게 사용하기 위해 채널 알림을 꺼주세요! :no_bell:');
-
-        await etcCategory.permissionOverwrites.create(this.id, {'VIEW_CHANNEL': false});
+        // await etcCategory.permissionOverwrites.create(this.id, {'VIEW_CHANNEL': false});
     }
 
-    public processCommand(message: Message) {
+    public async processCommand(message: Message) {
         if (message.author.bot) return;
     
         const content = message.content.toLowerCase();
@@ -137,17 +147,20 @@ export class Bot {
         }
         
         const server = this.serverList.get(message.guildId);
+        const channel = message.channel as TextBasedChannel;
         switch (content) {
             case 'set summary':
                 return this.setSummary(message);
             case 'clear summary':
                 return this.clearSummary(message);
+            case 'summary':
+                return this.summary(server, channel);
             case 'set korean':
                 return this.setKorean(message);
             case 'clear korean':
                 return this.clearKorean(message);
             case 'init':
-                return this.createStudyCategory(message.guild);
+                return await this.createStudyCategory(message.guild);
             case 'help':
                 message.channel.send(help);
                 return;
@@ -224,12 +237,13 @@ export class Bot {
         } else {
             server.setSummary(channel.id, () => {this.summary(server, channel)});
             let comment = `해당 채널에 **하루 정리**가 설정되었습니다.\n`;
-            comment += `목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`
+            comment += `목표 시간을 달성하면 😃을 , 달성하지 못한다면 😢을 받습니다.`
+            // comment += `목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`
             channel.send(comment);
         }
     }
 
-    private summary(server: Server, channel: TextBasedChannels) {
+    private summary(server: Server, channel: TextBasedChannel) {
         const now = new Date();
         const week = ['일','월','화','수','목','금','토'];
         let comment = `:mega:  ${now.getMonth()+1}월 ${now.getDate()}일 ${week[now.getDay()]}요일 \n`;
@@ -243,7 +257,7 @@ export class Bot {
                     user.startTime = now;
                 }
 
-                comment += `<@${userId}> ${user.totalTime.getHours()}시간 ${user.totalTime.getMinutes()}분  `;
+                comment += `<@${userId}> ${user.totalTime.getHours()}시간 ${user.totalTime.getMinutes()}분 ${user.totalTime.getSeconds()}초 `;
                 if (user.totalTime.getHours() >= server.goalHour) {
                     comment += `:thumbsup:\n`;
                 } else {
@@ -296,7 +310,8 @@ export class Bot {
     }
 
     private startStopwatch(message: Message) {
-        const server = this.serverList.get(message.guildId);
+        // const server = this.serverList.get(message.guildId);
+        const server = this.getServer(message.guildId);
         const channel = message.channel;
         const userId = message.author.id;
 
@@ -313,7 +328,8 @@ export class Bot {
     }
     
     private pauseStopwatch(message: Message) {
-        const server = this.serverList.get(message.guildId);
+        // const server = this.serverList.get(message.guildId);
+        const server = this.getServer(message.guildId);
         const channel = message.channel;
         const userId = message.author.id;
 
@@ -326,17 +342,18 @@ export class Bot {
 
     private showTotalTime(message: Message) {
         const server = this.serverList.get(message.guildId);
+        // const server = this.getServer(message.guildId);
         const channel = message.channel;
         const userId = message.author.id;
 
         const user = server.getUser(userId);
-        if (!user) {
+        if (!user || !user.startTime) {
             channel.send(`<@${userId}> 스톱워치를 먼저 시작해주세요.`);
             return;
         }
 
         const totalTime = user.getCurrentTotal();
-        let comment = `<@${userId}> 오늘 하루  **${totalTime.getHours()}시간 ${totalTime.getMinutes()}분** `;
+        let comment = `<@${userId}> 오늘 하루  **${totalTime.getHours()}시간 ${totalTime.getMinutes()}분 ${totalTime.getSeconds()}초** `;
         if (user.startTime) {
             comment += `공부중  :book:`;
         } else {
