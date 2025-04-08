@@ -74,9 +74,17 @@ export class Server {
     // ✅ 현재 날짜 (오전 5시 기준)
     private getTodayKey(): string {
         const now = new Date();
-        const offset = 1000 * 60 * 60 * 5; // 오전 5시 기준
-        const localTime = new Date(now.getTime() - offset);
-        return localTime.toISOString().slice(0, 10); // YYYY-MM-DD
+
+        // 1. 한국 시간 (UTC+9) 보정
+        const kstOffset = 9 * 60 * 60 * 1000; // 9시간을 ms로
+        const kstNow = new Date(now.getTime() + kstOffset);
+    
+        // 2. 오전 5시 기준으로 하루 시작
+        const virtualOffset = 5 * 60 * 60 * 1000; // 5시간
+        const virtualStart = new Date(kstNow.getTime() - virtualOffset);
+    
+        // 3. 한국 시간 기준 YYYY-MM-DD 반환
+        return virtualStart.toISOString().slice(0, 10);
     }
 
     // ✅ 스톱워치 시작
