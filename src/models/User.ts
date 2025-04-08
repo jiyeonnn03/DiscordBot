@@ -1,30 +1,73 @@
 export class User {
-    public startTime: Date;
-    public totalTime: Date;
-
+    public startTime: Date | null;
+    public totalTimeByDay: { [dateKey: string]: number };
+  
     constructor() {
-        this.startTime = null;
-        this.totalTime = new Date(2021, 0);
+      this.startTime = null;
+      this.totalTimeByDay = {};
     }
-
-    public startStopwatch() {
-        this.startTime = new Date();
+  
+    private formatDateKey(date: Date): string {
+      return date.toISOString().split('T')[0];
     }
-
-    public pauseStopwatch() {
-        const now = new Date();
-        this.totalTime.setTime(this.totalTime.getTime() + (now.getTime() - this.startTime.getTime()));
-        this.startTime = null;
+  
+    public getTodayKey(): string {
+      const now = new Date();
+      now.setHours(now.getHours() - 5); // 오전 5시 기준 날짜 조정
+      return now.toISOString().slice(0, 10);
     }
-
+  
     public getCurrentTotal(): Date {
-        if (this.startTime) {
-            const now = new Date();
-            const tmp = new Date();
-            tmp.setTime(this.totalTime.getTime() + (now.getTime() - this.startTime.getTime()));
-            return tmp;
-        } else {
-            return this.totalTime;
-        }
+      const now = new Date();
+      const today = this.getTodayKey();
+      const base = this.totalTimeByDay[today] || 0;
+  
+      let total = base;
+      if (this.startTime) {
+        total += Math.floor((now.getTime() - this.startTime.getTime()) / 1000);
+      }
+  
+      return new Date(total * 1000);
     }
-}
+  
+    public startStopwatch(): void {
+      if (!this.startTime) {
+        this.startTime = new Date();
+      }
+    }
+  
+    public pauseStopwatch(): void {
+      if (this.startTime) {
+        const now = new Date();
+        const elapsed = now.getTime() - this.startTime.getTime();
+        const dateKey = this.getTodayKey();
+        this.addTime(dateKey, elapsed);
+        this.startTime = null;
+      }
+    }
+  
+    public addTime(dateKey: string, ms: number): void {
+      if (!this.totalTimeByDay[dateKey]) {
+        this.totalTimeByDay[dateKey] = 0;
+      }
+      this.totalTimeByDay[dateKey] += Math.floor(ms / 1000); // 초 단위로 저장
+    }
+  
+    public getTotalTime(dateKey: string): number {
+      let total = this.totalTimeByDay[dateKey] || 0;
+  
+      const now = new Date();
+      const currentKey = this.getTodayKey();
+  
+      if (this.startTime && currentKey === dateKey) {
+        total += Math.floor((now.getTime() - this.startTime.getTime()) / 1000);
+      }
+  
+      return total;
+    }
+  
+    public getAllDates(): string[] {
+      return Object.keys(this.totalTimeByDay).sort().reverse();
+    }
+  }
+  

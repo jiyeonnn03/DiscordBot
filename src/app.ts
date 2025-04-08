@@ -1,79 +1,64 @@
-// import { config } from './config';
-import { Client, Intents, Message, TextChannel } from 'discord.js';
+import { Client, Intents, Message } from 'discord.js';
 import { Bot } from './models/Bot';
+import dotenv from 'dotenv';
 
-import dotenv from "dotenv";
-dotenv.config(); // .env 파일을 불러옴
+dotenv.config(); // Load .env
 
 export const BOT_TOKEN = process.env.BOT_TOKEN!;
 export const BOT_ID = process.env.BOT_ID!;
 
-const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_MEMBERS, Intents.FLAGS.GUILD_VOICE_STATES] });
-// const bot = new Bot(config.id);
+const client = new Client({
+  intents: [
+    Intents.FLAGS.GUILDS,
+    Intents.FLAGS.GUILD_MESSAGES,
+    Intents.FLAGS.GUILD_MEMBERS,
+    Intents.FLAGS.GUILD_VOICE_STATES,
+  ],
+});
+
 const bot = new Bot(BOT_ID);
 
-client.on('ready', () => console.log(`${client.user.tag} is Ready !`));
+// 봇 준비 완료
+client.on('ready', () => {
+  console.log(`${client.user?.tag} is Ready!`);
+});
 
+// 서버 추가 시 초기화
 client.on('guildCreate', guild => {
-    bot.addServer(guild.id);
-    bot.createSbotCategory(guild);
-    console.log(`${guild.name} is added to serverlist.`)
+  bot.addServer(guild.id);
+  bot.createSbotCategory(guild);
+  console.log(`${guild.name} is added to server list.`);
 });
 
+// 서버에서 제거 시 정리
 client.on('guildDelete', guild => {
-    bot.deleteServer(guild.id);
-    console.log(`${guild.name} is deleted from serverlist.`);
+  bot.deleteServer(guild.id);
+  console.log(`${guild.name} is deleted from server list.`);
 });
 
-client.on('guildMemberRemove', member => bot.deleteUser(member.guild.id, member.user.id));
+// 유저 탈퇴 시 데이터 제거
+client.on('guildMemberRemove', member => {
+  bot.deleteUser(member.guild.id, member.user.id);
+});
 
+// 채널 삭제 시 요약 채널 체크
 client.on('channelDelete', channel => {
-    if (channel.type !== 'DM') bot.checkSummary(channel.guildId, channel.id)
+  if (channel.type !== 'DM') {
+    bot.checkSummary(channel.guildId, channel.id);
+  }
 });
 
-client.on('messageCreate', message => bot.processCommand(message));
+// 메시지 명령 처리
+client.on('messageCreate', message => {
+  bot.processCommand(message);
+});
 
-// client.login(config.token).then(() => bot.initServerList(client.guilds.cache));
-client.login(BOT_TOKEN).then(() => bot.initServerList(client.guilds.cache));
-
-
-
-
-// voiceStateUpdate 핸들러
+// 음성 채널 입/퇴장 이벤트 처리
 client.on('voiceStateUpdate', async (oldState, newState) => {
-    const member = newState.member;
-    const user = member.user;
-    const guild = newState.guild;
+  bot.handleVoiceStateUpdate(oldState, newState);
+});
 
-    // 음성채널 입장 or 퇴장 여부
-    const joined = !oldState.channel && newState.channel;
-    const left = oldState.channel && !newState.channel;
-    
-    await guild.channels.fetch(); // 캐시 누락 방지
-
-    const targetChannel = guild.channels.cache.find(
-        (ch) =>
-            ch.type === 'GUILD_TEXT' &&
-            ch.name === '시간-체크' &&
-            ch.parent?.name === '공부-채널'
-    ) as TextChannel;
-    
-    // if (targetChannel) {
-    //     await targetChannel.send(`<@${user}> 음성 채널에 입장하여 타이머를 자동으로 시작했습니다!`);
-    // } else {
-    //     console.error('시간-체크 채널을 찾을 수 없습니다.');
-    // }
-
-    // 자동 메시지 생성: start / pause 명령어처럼 처리
-    const fakeMessage = {
-        content: joined ? 'start' : 'pause',
-        author: user,
-        member: member,
-        guild: guild,
-        guildId: guild.id,
-        channel: targetChannel,
-        client: client,
-    } as unknown as Message;
-
-    client.emit('messageCreate', fakeMessage);    
+// 봇 로그인 및 서버 초기화
+client.login(BOT_TOKEN).then(() => {
+  bot.initServerList(client.guilds.cache);
 });
