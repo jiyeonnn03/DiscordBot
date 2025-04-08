@@ -93,14 +93,15 @@ interface Timer {
         await attendChannel.send('출석체크를 통해 공부의 시작을 알리세요. :sunglasses:');
         attendChannel.permissionOverwrites.create(this.id, {'VIEW_CHANNEL': false});
 
-        const watchChannel = await channelManager.create('시간-체크', { type: 'GUILD_TEXT', parent: studyCategory.id, topic: 'SBOT으로 공부시간 체크하자! :alarm_clock:'});
-        await watchChannel.send('`start` 로 스톱워치를 시작하세요! `help` 를 통해 사용가능한 명령어를 확인할 수 있습니다.\n채널 알림을 꺼두는 것을 추천합니다. :no_bell:');
+        const watchChannel = await channelManager.create('시간-체크', { type: 'GUILD_TEXT', parent: studyCategory.id, topic: ''});
+        await watchChannel.send('공부 채널 - `캠-스터디` 입장으로 스톱워치를 시작하세요! \n채널 알림을 꺼두는 것을 추천합니다. :no_bell:');
+        // await watchChannel.send('`start` 로 스톱워치를 시작하세요! `help` 를 통해 사용가능한 명령어를 확인할 수 있습니다.\n채널 알림을 꺼두는 것을 추천합니다. :no_bell:');
         await watchChannel.send(help);
 
         const summaryChannel = await channelManager.create('하루-정리', { 
             type: 'GUILD_TEXT', 
             parent: studyCategory.id, 
-            topic: '오늘 따봉:thumbsup:을 받을까, 벽돌:bricks:을 받을까?', 
+            topic: '오늘 😃을 받을까, 👻을 받을까?', 
             permissionOverwrites: [
                 {
                     id: guild.roles.everyone,
@@ -115,7 +116,8 @@ interface Timer {
         if (server.summary.job || server.summary.channelId) server.clearSummary();
         server.setSummary(summaryChannel.id, () => {this.summary(server, summaryChannel)});
         let comment = `해당 채널에 **하루 정리**가 설정되었습니다.
-        목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`;
+        목표 시간을 달성하면 😃을 , 달성하지 못한다면 👻을 받습니다.`;
+        // 목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`;
         summaryChannel.send(comment);
         
         await channelManager.create('캠-스터디', { type: 'GUILD_VOICE', parent: studyCategory.id });
@@ -205,11 +207,11 @@ interface Timer {
         
                 const lines = await Promise.all(summary.map(async ({ userId, time }, index) => {
                   const user = await message.client.users.fetch(userId);
-                  const name = user.username;
-                  return `${index + 1}위 - ${name}: ${time > 0 ? this.formatDuration(time) : '0시간 (비활성)'}`;
+                  const name = userId;
+                  return `${index + 1}위 - <@${name}> ${time > 0 ? this.formatDuration(time) : '0시간 (비활성)'}`;
                 }));
         
-                message.reply(`📊 **오늘의 누적 시간 랭킹 (${today})** 📊\n` + lines.join('\n'));
+                channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n` + lines.join('\n'));
                 break;
               }
         
