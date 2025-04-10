@@ -13,7 +13,8 @@ export class User {
   
     public getTodayKey(): string {
       const now = new Date();
-      now.setHours(now.getHours() - 5); // 오전 5시 기준 날짜 조정
+      // now.setHours(now.getHours() - 5); // 오전 5시 기준 날짜 조정
+      now.setHours(now.getHours() + 15) % 24; // 한국시간 계산, 예: 9시 KST → 0시 UTC
       return now.toISOString().slice(0, 10);
     }
   
