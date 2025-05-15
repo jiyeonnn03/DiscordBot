@@ -16,10 +16,11 @@ export class Server {
     public summary: { channelId: string; job: schedule.Job; cron: string };
 
     constructor() {
-        this.goalHour = 6;
+        this.goalHour = 5;
         this.userList = new Map();
         this.useKorean = false;
-        this.summary = { channelId: null, job: null, cron: '0 0 15 * * *' };
+        // this.summary = { channelId: null, job: null, cron: '0 0 15 * * *' };
+        this.summary = { channelId: null, job: null, cron: '0 0 5 * * *' };
     }
 
     public hasUser(userId: string): boolean {
@@ -42,18 +43,24 @@ export class Server {
     public setSummary(channelId: string, summary: schedule.JobCallback) {
         this.summary.channelId = channelId;
         this.summary.job = schedule.scheduleJob(this.summary.cron, summary);
+        console.log('===setSummary called, cron:', this.summary.cron); // 추가
     }
 
     private setSummaryTime(hour: number, min: number) {
-        const utcHour = this.kstToUtc(hour);
-        this.summary.cron = `0 ${min} ${utcHour} * * *`;
+        // const utcHour = this.kstToUtc(hour);
+        // this.summary.cron = `0 ${min} ${utcHour} * * *`;
+        this.summary.cron = `0 ${min} ${hour} * * *`;
     }
 
     public editSummaryTime(hour: number, min: number) {
         this.setSummaryTime(hour, min);
+        console.log('===editSummaryTime called, new cron:', this.summary.cron); // 추가
         if (this.summary.job) {
-            schedule.rescheduleJob(this.summary.job, this.summary.cron);
-        }
+            const res = schedule.rescheduleJob(this.summary.job, this.summary.cron);
+            console.log('===rescheduleJob result:', res ? 'success' : 'failure');
+        } else {
+        console.log('No existing job to reschedule');
+    }
     }
 
     private kstToUtc(hour: number) {
@@ -69,77 +76,6 @@ export class Server {
     // ✅ 유저 고유 키: guildId:userId
     private getUserKey(userId: string, guildId: string): string {
         return `${guildId}:${userId}`;
-    }
-
-    // ✅ 현재 날짜 (오전 5시 기준)
-    private getTodayKey(): string {
-        const now = new Date();
-
-        // 1. 한국 시간 (UTC+9) 보정
-        const kstOffset = 9 * 60 * 60 * 1000; // 9시간을 ms로
-        const kstNow = new Date(now.getTime() + kstOffset);
-    
-        // 2. 오전 5시 기준으로 하루 시작
-        const virtualOffset = 5 * 60 * 60 * 1000; // 5시간
-        const virtualStart = new Date(kstNow.getTime() - virtualOffset);
-    
-        // 3. 한국 시간 기준 YYYY-MM-DD 반환
-        return virtualStart.toISOString().slice(0, 10);
-    }
-
-    // ✅ 스톱워치 시작
-    public startStopwatch(userId: string, username: string, guildId: string) {
-        const key = this.getUserKey(userId, guildId);
-        let record = this.stopwatchMap.get(key);
-
-        if (!record) {
-            record = { start: Date.now(), total: 0, username };
-            this.stopwatchMap.set(key, record);
-        } else if (!record.start) {
-            record.start = Date.now();
-        }
-        // 이미 작동 중이면 무시
-    }
-
-    // ✅ 스톱워치 일시정지
-    public pauseStopwatch(userId: string, username: string, guildId: string): number {
-        const key = this.getUserKey(userId, guildId);
-        let record = this.stopwatchMap.get(key);
-
-        if (!record) {
-            record = { total: 0, username };
-            this.stopwatchMap.set(key, record);
-            return 0;
-        }
-
-        if (record.start) {
-            const now = Date.now();
-            const elapsed = now - record.start;
-            record.total += elapsed;
-            record.start = undefined;
-        }
-
-        return record.total;
-    }
-
-    // ✅ 경과 시간 확인
-    public getElapsedTime(userId: string, guildId: string): number {
-        const key = this.getUserKey(userId, guildId);
-        const record = this.stopwatchMap.get(key);
-
-        if (!record) return 0;
-
-        let elapsed = record.total;
-        if (record.start) {
-            elapsed += Date.now() - record.start;
-        }
-
-        return elapsed;
-    }
-
-    // ✅ 오늘 누적 시간 반환
-    public getTodayElapsed(userId: string, guildId: string): number {
-        return this.getElapsedTime(userId, guildId); // 현재는 getElapsedTime과 동일한 로직
     }
 
     // ✅ 시간 포맷

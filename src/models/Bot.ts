@@ -86,7 +86,7 @@ interface Timer {
     private async createStudyCategory(guild: Guild) {
         const channelManager = guild.channels;
         const server = this.serverList.get(guild.id);
-
+        console.log("==========================")
         const studyCategory = await channelManager.create('공부-채널', { type: 'GUILD_CATEGORY'});
 
         const attendChannel = await channelManager.create('출석-체크', { type: 'GUILD_TEXT', parent: studyCategory.id, topic: '나 공부하러 왔다 ~ :wave:'});
@@ -114,10 +114,9 @@ interface Timer {
             ]
         });
         if (server.summary.job || server.summary.channelId) server.clearSummary();
-        server.setSummary(summaryChannel.id, () => {this.summary(server, summaryChannel)});
+        // server.setSummary(summaryChannel.id, () => {this.summary(server, summaryChannel)});
         let comment = `해당 채널에 **하루 정리**가 설정되었습니다.
         목표 시간을 달성하면 😃을 , 달성하지 못한다면 👻을 받습니다.`;
-        // 목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`;
         summaryChannel.send(comment);
         
         await channelManager.create('캠-스터디', { type: 'GUILD_VOICE', parent: studyCategory.id });
@@ -197,6 +196,8 @@ interface Timer {
               }
         
               case 'summary': {
+                // this.summaryCallback(message);
+                // break;
                 const today = this.getBaseDate();
                 const summary = Array.from(this.knownUsers).map(userId => {
                   const time = this.getUserTime(userId);
@@ -208,7 +209,7 @@ interface Timer {
                 const lines = await Promise.all(summary.map(async ({ userId, time }, index) => {
                   const user = await message.client.users.fetch(userId);
                   const name = userId;
-                  return `${index + 1}위 - <@${name}> ${time > 0 ? this.formatDuration(time) : '0시간 (비활성)'}`;
+                  return `${index + 1}위 - <@${name}> ${time > 0 ? this.formatDuration(time) : '0시간👻'}`;
                 }));
         
                 channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n` + lines.join('\n'));
@@ -225,12 +226,12 @@ interface Timer {
                 return this.setSummary(message);
             case 'clear summary':
                 return this.clearSummary(message);
-            case 'summary':
-                return this.summary(server, channel);
-            case 'set korean':
-                return this.setKorean(message);
-            case 'clear korean':
-                return this.clearKorean(message);
+            // case 'summary':
+            //     return this.summary(server, channel);
+            // case 'set korean':
+            //     return this.setKorean(message);
+            // case 'clear korean':
+            //     return this.clearKorean(message);
             case 'init':
                 return await this.createStudyCategory(message.guild);
             case 'help':
@@ -248,18 +249,6 @@ interface Timer {
             case 'goal':
             case 'g':
                 return this.showGoalHour(message);
-            case 'ㄴ':
-                if (server.useKorean === true) this.startStopwatch(message);
-                return;
-            case 'ㅔ':
-                if (server.useKorean === true) this.pauseStopwatch(message);
-                return;
-            case 'ㅅ':
-                if (server.useKorean === true) this.showTotalTime(message);
-                return;
-            case 'ㅎ':
-                if (server.useKorean === true) this.showGoalHour(message);
-                return;
             case 'console server':
                 return console.log(this.serverList.get(message.guildId));
             case 'console serverlist':
@@ -284,21 +273,42 @@ interface Timer {
         }
     }
 
+    // private setSummaryTime(message: Message, hour: number, min: number) {
+    //     const server = this.serverList.get(message.guildId);
+    //     const channel = message.channel;
+
+    //     if (hour < 0 || hour > 23 || min < 0 || min > 59) {
+    //         channel.send(`0시 0분부터 23시 59분 사이로 설정해주세요.`);
+    //     } else {
+    //         server.editSummaryTime(hour, min);
+    //         channel.send(`**하루 정리**가 ${hour}시 ${min}분을 기준으로 동작합니다.`);
+    //     }
+    // }
     private setSummaryTime(message: Message, hour: number, min: number) {
         const server = this.serverList.get(message.guildId);
-        const channel = message.channel;
+        const channel = message.channel as TextBasedChannel;
 
         if (hour < 0 || hour > 23 || min < 0 || min > 59) {
             channel.send(`0시 0분부터 23시 59분 사이로 설정해주세요.`);
+            return;
+        }
+
+        // ✅ 아직 summary.job이 없다면, 최초 등록
+        if (!server.summary.job) {
+            server.setSummary(channel.id, () => {this.summary(message)});
+            console.log(`=== summaryTime 최초 등록 완료`);
         } else {
             server.editSummaryTime(hour, min);
-            channel.send(`**하루 정리**가 ${hour}시 ${min}분을 기준으로 동작합니다.`);
+            console.log(`=== editSummaryTime 스케줄 등록 완료`);
         }
+
+        channel.send(`**하루 정리**가 ${hour}시 ${min}분을 기준으로 동작합니다.`);
     }
 
     private setSummary(message: Message) {
         const server = this.serverList.get(message.guildId);
         const channel = message.channel;
+
 
         if (server.summary.job || server.summary.channelId) {
             if (channel.id === server.summary.channelId) {
@@ -307,45 +317,250 @@ interface Timer {
                 channel.send(`**하루 정리**가 설정된 다른 채널이 있습니다.`);
             }
         } else {
-            server.setSummary(channel.id, () => {this.summary(server, channel)});
+            // const cronParts = server.summary.cron.split(' ');
+            // // cron 형식: '0 분 시 * * *'
+            // const resetTime = new Date(parseInt(cronParts[2]), parseInt(cronParts[1]), 0, 0);
+            // const now = new Date();
+
+            // // 현재 시간보다 초기화 시간이 미래면 하루 전으로 보정 (예: 14:00 cron인데 현재가 13:00인 경우)
+            // if (now < resetTime) {
+            //     resetTime.setUTCDate(resetTime.getUTCDate() - 1);
+            // }
+
+            // const fakeMessage = {
+            //     channel,
+            //     author: { id: 'system' },       // 봇이나 시스템 ID로 처리
+            //     guildId: message.guildId,
+            //     client: message.client,
+            //     content: 'summary',
+            //     isAuto: true,
+            //     summarytime: resetTime.getTime()
+            // } as Message & { isAuto: boolean; summarytime: number };
+
+            // console.log('===> channel.id', channel.id, 'channel', channel)
+            // // server.setSummary(channel.id, () => {this.summary(server, channel)});
+            // server.setSummary(channel.id, () => this.summaryCallback(fakeMessage));
+
+            // server.setSummary(channel.id, () => {this.summary(server, channel)});
+            server.setSummary(channel.id, () => this.summary(message));
             let comment = `해당 채널에 **하루 정리**가 설정되었습니다.\n`;
-            comment += `목표 시간을 달성하면 따봉:thumbsup:을 , 달성하지 못한다면 벽돌:bricks:을 받습니다.`
+            comment += `목표 시간을 달성하면 😃을 , 달성하지 못한다면 👻을 받습니다.`
             channel.send(comment);
         }
     }
 
-    private summary(server: Server, channel: TextBasedChannel) {
-        const now = new Date();
-        const week = ['일','월','화','수','목','금','토'];
-        let comment = `:mega:  ${now.getMonth() + 1}월 ${now.getDate()}일 ${week[now.getDay()]}요일 \n`;
-    
-        if (server.userList.size === 0) {
-            comment += `- 아직 참여한 사용자가 없습니다 -`;
-        } else {
-            server.userList.forEach((user, userId) => {
-                // 일시 정지
-                if (user.startTime) {
-                    user.pauseStopwatch();
-                    user.startTime = now; // 다시 시작
-                }
-    
-                // 오늘 날짜 키
-                const todayKey = now.toISOString().slice(0, 10); // 혹은 user.getTodayKey() 쓰도록 변경
-                const totalSeconds = user.getTotalTime(todayKey);
-                const totalDate = new Date(totalSeconds * 1000); // Date로 변환
-    
-                comment += `<@${userId}> ${totalDate.getUTCHours()}시간 ${totalDate.getUTCMinutes()}분 ${totalDate.getUTCSeconds()}초 `;
-    
-                if (totalDate.getUTCHours() >= server.goalHour) {
-                    comment += `:thumbsup:\n`;
-                } else {
-                    comment += `:bricks:\n`;
-                }
-            });
-        }
-    
-        channel.send(comment);
+    // isAuto 추가한 코드(잘 안됨)
+    // private setSummary(message: Message) {
+    //     const server = this.serverList.get(message.guildId);
+    //     const channel = message.channel;
+
+
+    //     if (server.summary.job || server.summary.channelId) {
+    //         if (channel.id === server.summary.channelId) {
+    //             channel.send(`이미 **하루 정리**가 설정된 채널입니다.`);
+    //         } else {
+    //             channel.send(`**하루 정리**가 설정된 다른 채널이 있습니다.`);
+    //         }
+    //     } else {
+    //         const cronParts = server.summary.cron.split(' ');
+    //         // cron 형식: '0 분 시 * * *'
+    //         const resetTime = new Date(parseInt(cronParts[2]), parseInt(cronParts[1]), 0, 0);
+    //         const now = new Date();
+
+    //         // 현재 시간보다 초기화 시간이 미래면 하루 전으로 보정 (예: 14:00 cron인데 현재가 13:00인 경우)
+    //         if (now < resetTime) {
+    //             resetTime.setUTCDate(resetTime.getUTCDate() - 1);
+    //         }
+
+    //         const fakeMessage = {
+    //             channel,
+    //             author: { id: 'system' },       // 봇이나 시스템 ID로 처리
+    //             guildId: message.guildId,
+    //             client: message.client,
+    //             content: 'summary',
+    //             isAuto: true,
+    //             summarytime: resetTime.getTime()
+    //         } as Message & { isAuto: boolean; summarytime: number };
+
+    //         console.log('===> channel.id', channel.id, 'channel', channel, 'fake_mes', fakeMessage)
+    //         // server.setSummary(channel.id, () => {this.summary(server, channel)});
+    //         server.setSummary(channel.id, () => this.summaryCallback(fakeMessage));
+    //         let comment = `해당 채널에 **하루 정리**가 설정되었습니다.\n`;
+    //         comment += `목표 시간을 달성하면 😃을 , 달성하지 못한다면 👻을 받습니다.`
+    //         channel.send(comment);
+    //     }
+    // }
+
+    // async summaryCallback(channel: TextBasedChannel) {
+    //     console.log('===summaryCallback 실행')
+    //     const today = this.getBaseDate();
+    //     console.log('knownusers: ', this.knownUsers)
+
+    //     const summary = Array.from(this.knownUsers).map(userId => {
+    //         const time = this.getUserTime(userId);
+    //         return { userId, time };
+    //     });
+        
+    //     summary.sort((a, b) => b.time - a.time);
+        
+    //     const lines = await Promise.all(summary.map(async ({ userId, time }, index) => {
+    //         const user = await channel.client.users.fetch(userId);
+    //         return `${index + 1}위 - <@${userId}> ${time > 0 ? this.formatDuration(time) : '0시간 (비활성)'}`;
+    //     }));
+
+    //     channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n` + lines.join('\n'));
+    //     }
+
+// // summaryCallback 함수
+// async summaryCallback(message: Message) {
+//     console.log('===summaryCallback 실행');
+//     const today = this.getBaseDate();
+
+//     const knownUsers = this.knownUsers; // Set<string>
+//     console.log('knownUsers:', knownUsers);
+
+//     const summary = Array.from(knownUsers).map(userId => {
+//         const time = this.getUserTime(userId);
+//         return { userId, time };
+//     });
+
+//     summary.sort((a, b) => b.time - a.time);
+
+//     const lines = await Promise.all(summary.map(async ({ userId, time }, index) => {
+//     const user = await message.client.users.fetch(userId);
+
+//     const resetTime = new Date().getTime();
+
+//     // 스톱워치가 작동 중이면 현재까지의 시간 누적
+//     const timer = this.activeTimers.get(userId);
+//     console.log('resetTime: ', resetTime, 'timer: ', timer)
+//     if (timer) {
+//         const elapsed = Math.floor((resetTime - timer.startTime) / 1000);
+//         const userRecord = this.accumulatedTimes.get(userId) || {};
+//         userRecord[today] = (userRecord[today] || 0) + elapsed;
+//         this.accumulatedTimes.set(userId, userRecord);
+
+//         // 누적 시간 초기화
+//         this.accumulatedTimes.set(userId, {});
+
+//         // 타이머 재시작
+//         this.activeTimers.set(userId, {
+//             startTime: resetTime,
+//             accumulated: 0,
+//         });
+
+//         console.log(`User ${userId} 자동 초기화: ${elapsed}초 반영 후 재시작`);
+//     } else {
+//         // 스톱워치가 꺼져 있는 사용자도 누적 시간만 초기화
+//         this.accumulatedTimes.set(userId, {});
+//     }
+
+//     return `${index + 1}위 - <@${userId}> ${time > 0 ? this.formatDuration(time) : '0시간👻'}`;
+//     }));
+
+//     await message.channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n` + lines.join('\n'));
+// }
+
+async summary(message: Message) {
+    console.log("Bot.ts에서 summary 함수 실행")
+    const server = this.getServer(message.guildId);
+    const channel = message.channel;
+
+    const cronParts = server.summary.cron.split(' ');
+    const cronMin = parseInt(cronParts[1]);
+    const cronHour = parseInt(cronParts[2]);
+
+    const now = new Date();
+    const resetTime = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        cronHour,
+        cronMin,
+        0,
+        0
+    );
+
+    if (resetTime > now) {
+        resetTime.setDate(resetTime.getDate() - 1);
     }
+
+    const today = this.getBaseDate();
+
+    if (this.knownUsers.size === 0) {
+        await channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n- 아직 참여한 사용자가 없습니다 -`);
+        return;
+    }
+
+    const summary: { userId: string; time: number }[] = [];
+
+    server.userList.forEach((user, userId) => {
+        let total = user.getTotalTime(today);
+
+        // 스톱워치가 작동 중이면 resetTime까지의 시간 누적 후 재시작
+        if (user.startTime) {
+        const elapsed = Math.floor((resetTime.getTime() - user.startTime.getTime()) / 1000);
+        total += elapsed;
+
+        user.pauseStopwatch();
+        user.startTime = resetTime;  // 재시작 시점을 초기화 시간 기준으로 설정
+
+        console.log(`User ${userId} 스톱워치 재시작됨. 누적시간: ${total}초`);
+        }
+
+        summary.push({ userId, time: total });
+
+        // 누적 시간 초기화
+        // user.time = 0;
+        this.activeTimers.set(userId, { startTime: this.getCurrentTime(), accumulated: 0 });
+    });
+
+    // 누적 시간 순 정렬
+    summary.sort((a, b) => b.time - a.time);
+
+    // 포맷팅 및 출력
+    const lines = await Promise.all(summary.map(async ({ userId, time }, index) => {
+        const userObj = await message.client.users.fetch(userId);
+        return `${index + 1}위 - <@${userId}> ${time > 0 ? this.formatDuration(time) : '0시간 (비활성)'}`;
+    }));
+
+    await channel.send(`⏱️ **${today} 누적 시간 순위** ⏱️\n` + lines.join('\n'));
+    }
+
+
+
+    // private summary(server: Server, channel: TextBasedChannel) {
+    //     const now = new Date();
+    //     const week = ['일','월','화','수','목','금','토'];
+    //     let comment = `:mega:  ${now.getMonth() + 1}월 ${now.getDate()}일 ${week[now.getDay()]}요일 \n`;
+    
+    //     if (server.userList.size === 0) {
+    //         comment += `- 아직 참여한 사용자가 없습니다 -`;
+    //     } else {
+    //         server.userList.forEach((user, userId) => {
+    //             // 일시 정지
+    //             if (user.startTime) {
+    //                 user.pauseStopwatch();
+    //                 user.startTime = now; // 다시 시작
+    //             }
+    
+    //             // 오늘 날짜 키
+    //             const todayKey = now.toISOString().slice(0, 10); // 혹은 user.getTodayKey() 쓰도록 변경
+    //             const totalSeconds = user.getTotalTime(todayKey);
+    //             const totalDate = new Date(totalSeconds * 1000); // Date로 변환
+    
+    //             comment += `<@${userId}> ${totalDate.getUTCHours()}시간 ${totalDate.getUTCMinutes()}분 ${totalDate.getUTCSeconds()}초 `;
+    
+    //             if (totalDate.getUTCHours() >= server.goalHour) {
+    //                 comment += `:thumbsup:\n`;
+    //             } else {
+    //                 comment += `:bricks:\n`;
+    //             }
+    //         });
+    //     }
+    
+    //     channel.send(comment);
+    // }
     
 
     private clearSummary(message: Message) {
@@ -361,30 +576,6 @@ interface Timer {
             }
         } else {
             channel.send(`**하루 정리**가 설정된 채널이 없습니다.`);
-        }
-    }
-
-    private setKorean(message: Message) {
-        const server = this.serverList.get(message.guildId);
-        const channel = message.channel;
-
-        if (server.useKorean) {
-            channel.send(`이미 한글 명령어가 적용된 상태입니다.`);
-        } else {
-            channel.send(`지금부터 한글 명령어 \`ㄴ\` , \`ㅔ\` , \`ㅅ\` , \`ㅎ\` 가 적용됩니다.\n`);
-            server.useKorean = true;
-        }
-    }
-
-    private clearKorean(message: Message) {
-        const server = this.serverList.get(message.guildId);
-        const channel = message.channel;
-
-        if (server.useKorean) {
-            channel.send(`지금부터 한글 명령어가 해제됩니다.`);
-            server.useKorean = false;
-        } else {
-            channel.send(`이미 한글 명령어가 해제된 상태입니다.`);
         }
     }
 
